@@ -309,6 +309,9 @@ export async function scan(options: ScanOptions): Promise<ScanResult[]> {
   const results: ScanResult[] = [];
 
   for (const lang of languages) {
+    // Skip languages not supported by the selected backend
+    if (backend === 'ast-grep' && !AST_GREP_SUPPORTED.has(lang)) continue;
+
     const files = filesByLang.get(lang) ?? [];
     if (files.length === 0) continue;
 
