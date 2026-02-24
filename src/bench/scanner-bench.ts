@@ -91,24 +91,33 @@ export async function benchmarkScanners(dir: string): Promise<ScannerBenchResult
     : null;
   const semgrepResult = await runBackend('semgrep', dir, allLanguages);
 
-  // Build pattern comparison (only for shared languages)
+  // Build pattern comparison (only for shared languages, deduplicated by name)
   const sharedLangs = astGrepLangs; // ast-grep is the smaller set
   const comparisons: PatternComparison[] = [];
+  const seen = new Set<string>();
 
   for (const lang of sharedLangs) {
     const patterns = getPatternsForLang(lang);
     for (const pat of patterns) {
-      const agMatch = astGrepResult?.results.find((r) => r.pattern.name === pat.name);
-      const sgMatch = semgrepResult?.results.find((r) => r.pattern.name === pat.name);
+      if (seen.has(pat.name)) continue;
+      seen.add(pat.name);
+
+      // Sum matches across all results for this pattern name
+      const agMatches = astGrepResult?.results
+        .filter((r) => r.pattern.name === pat.name)
+        .reduce((sum, r) => sum + r.matchCount, 0) ?? null;
+      const sgMatches = semgrepResult?.results
+        .filter((r) => r.pattern.name === pat.name)
+        .reduce((sum, r) => sum + r.matchCount, 0) ?? null;
+
+      const agCount = astGrepResult ? (agMatches ?? 0) : null;
+      const sgCount = semgrepResult ? (sgMatches ?? 0) : null;
 
       comparisons.push({
         name: pat.name,
-        astGrepMatches: agMatch?.matchCount ?? (astGrepResult ? 0 : null),
-        semgrepMatches: sgMatch?.matchCount ?? (semgrepResult ? 0 : null),
-        agreement: classifyAgreement(
-          agMatch?.matchCount ?? (astGrepResult ? 0 : null),
-          sgMatch?.matchCount ?? (semgrepResult ? 0 : null),
-        ),
+        astGrepMatches: agCount,
+        semgrepMatches: sgCount,
+        agreement: classifyAgreement(agCount, sgCount),
       });
     }
   }
@@ -234,6 +243,81 @@ export function formatScannerBench(result: ScannerBenchResult): string {
   );
   if (semgrepOnly.length > 0) {
     lines.push(`  Semgrep-only languages: ${semgrepOnly.join(', ')}`);
+  }
+
+  lines.push('');
+  return lines.join('\n');
+}
+
+export function formatScannerBenchMarkdown(result: ScannerBenchResult): string {
+  const lines: string[] = [];
+
+  lines.push('# Scanner Benchmark: ast-grep vs semgrep');
+  lines.push('');
+  lines.push(`**Directory:** \`${result.dir}\``);
+  lines.push(`**Languages:** ${result.languages.join(', ')}`);
+  lines.push('');
+
+  // Backend performance
+  lines.push('## Backend Performance');
+  lines.push('');
+  lines.push('| Backend | Time | Patterns | Detected | Matches | Languages |');
+  lines.push('|---------|------|----------|----------|---------|-----------|');
+
+  if (result.astGrep) {
+    lines.push(
+      `| ast-grep | ${result.astGrep.durationMs}ms | ${result.astGrep.patternCount} | ${result.astGrep.patternsDetected} | ${result.astGrep.totalMatches} | ${result.astGrep.languages.join(', ')} |`,
+    );
+  } else {
+    lines.push('| ast-grep | N/A | - | - | - | (not available) |');
+  }
+
+  if (result.semgrep) {
+    lines.push(
+      `| semgrep | ${result.semgrep.durationMs}ms | ${result.semgrep.patternCount} | ${result.semgrep.patternsDetected} | ${result.semgrep.totalMatches} | ${result.semgrep.languages.join(', ')} |`,
+    );
+  } else {
+    lines.push('| semgrep | N/A | - | - | - | (not available) |');
+  }
+
+  lines.push('');
+
+  // Pattern comparison
+  if (result.patterns.length > 0) {
+    lines.push('## Pattern Comparison');
+    lines.push('');
+    lines.push('| Pattern | ast-grep | semgrep | Agreement |');
+    lines.push('|---------|----------|---------|-----------|');
+
+    for (const p of result.patterns) {
+      const ag = p.astGrepMatches !== null ? String(p.astGrepMatches) : 'N/A';
+      const sg = p.semgrepMatches !== null ? String(p.semgrepMatches) : 'N/A';
+      lines.push(`| ${p.name} | ${ag} | ${sg} | ${p.agreement} |`);
+    }
+
+    lines.push('');
+  }
+
+  // Summary
+  lines.push('## Summary');
+  lines.push('');
+
+  if (result.summary.speedRatio !== null) {
+    const faster = result.summary.speedRatio > 1 ? 'ast-grep' : 'semgrep';
+    const ratio = result.summary.speedRatio > 1
+      ? result.summary.speedRatio.toFixed(1)
+      : (1 / result.summary.speedRatio).toFixed(1);
+    lines.push(`- **Speed:** ${faster} is ${ratio}x faster`);
+  }
+
+  lines.push(`- **Coverage:** ast-grep ${(result.summary.coverageAstGrep * 100).toFixed(0)}% | semgrep ${(result.summary.coverageSemgrep * 100).toFixed(0)}%`);
+  lines.push(`- **Agreement:** ${(result.summary.agreementRate * 100).toFixed(0)}% of shared patterns match or are close`);
+
+  const semgrepOnly = result.languages.filter(
+    (l) => l !== 'typescript' && l !== 'javascript',
+  );
+  if (semgrepOnly.length > 0) {
+    lines.push(`- **Semgrep-only languages:** ${semgrepOnly.join(', ')}`);
   }
 
   lines.push('');

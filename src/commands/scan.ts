@@ -8,7 +8,7 @@ import { rebuildAll } from '../core/index.js';
 import { scan, detectLanguages, type ScannerBackend } from '../scanner/scanner.js';
 import { dedupOperation } from '../algorithms/dedup.js';
 import type { SupportedLang } from '../scanner/patterns.js';
-import { benchmarkScanners, formatScannerBench } from '../bench/scanner-bench.js';
+import { benchmarkScanners, formatScannerBench, formatScannerBenchMarkdown } from '../bench/scanner-bench.js';
 
 export function registerScanCommand(program: Command): void {
   program
@@ -20,6 +20,7 @@ export function registerScanCommand(program: Command): void {
     .option('--dry-run', 'Show discovered patterns without saving')
     .option('--exclude <dirs>', 'Comma-separated directories to exclude')
     .option('--benchmark', 'Run both ast-grep and semgrep, compare speed and results')
+    .option('--export <path>', 'Export benchmark report (.md or .json)')
     .action(async (dir, opts) => {
       const parentOpts = program.opts();
       const memexDir = resolveMemexDir(parentOpts);
@@ -48,6 +49,23 @@ export function registerScanCommand(program: Command): void {
         try {
           const benchResult = await benchmarkScanners(scanDir);
           console.log(formatScannerBench(benchResult));
+
+          if (opts.export) {
+            const { writeFile } = await import('node:fs/promises');
+            const exportPath = opts.export as string;
+            if (exportPath.endsWith('.json')) {
+              await writeFile(exportPath, JSON.stringify(benchResult, (_, v) => {
+                // Strip full ScanResult objects for cleaner JSON
+                if (v && typeof v === 'object' && 'entry' in v && 'pattern' in v) {
+                  return { pattern: v.pattern?.name, matchCount: v.matchCount, files: v.files?.length };
+                }
+                return v;
+              }, 2));
+            } else {
+              await writeFile(exportPath, formatScannerBenchMarkdown(benchResult));
+            }
+            console.log(chalk.green(`Report exported to ${exportPath}`));
+          }
         } catch (err) {
           console.error(chalk.red('Benchmark failed:'), (err as Error).message);
           process.exit(1);
