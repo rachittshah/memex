@@ -358,6 +358,87 @@ memex validate [dir] [options]      Validate memories against code
 memex serve                          Start MCP server (stdio)
 ```
 
+## Scanner Benchmark: ast-grep vs semgrep
+
+memex supports two code scanning backends. Run `memex scan --benchmark` to compare them on your codebase. Here are results from three real-world projects:
+
+### Vercel AI SDK (3,490 TS/JS files)
+
+| Backend | Time | Patterns Checked | Detected | Total Matches |
+|---------|------|-----------------|----------|---------------|
+| **ast-grep** | **15.2s** | 21 | 14 | 8,235 |
+| semgrep | 180.0s | 26 | 5 | 6,855 |
+
+**ast-grep is 11.8x faster** and detects nearly 3x more patterns.
+
+<details>
+<summary>Pattern-by-pattern comparison</summary>
+
+| Pattern | ast-grep | semgrep | Agreement |
+|---------|----------|---------|-----------|
+| async-await | 258 | 0 | divergent |
+| arrow-functions | 328 | 0 | divergent |
+| try-catch-error-handling | 248 | 0 | divergent |
+| named-exports | 327 | 0 | divergent |
+| default-exports | 354 | 0 | divergent |
+| describe-it-tests | 1,828 | 0 | divergent |
+| console-error-logging | 206 | 0 | divergent |
+| optional-chaining | 2,196 | 3,992 | divergent |
+| nullish-coalescing | 1,222 | 2,504 | divergent |
+| interface-over-type | 279 | 359 | divergent |
+| type-aliases | 985 | 0 | divergent |
+| enum-usage | 4 | 0 | divergent |
+
+</details>
+
+### memex (34 TS files)
+
+| Backend | Time | Patterns Checked | Detected | Total Matches |
+|---------|------|-----------------|----------|---------------|
+| **ast-grep** | **254ms** | 12 | 7 | 168 |
+| semgrep | 37.4s | 12 | 4 | 2,783 |
+
+**ast-grep is 147x faster.** Semgrep's inflated match count comes from an overly broad `enum` pattern (2,693 false positives).
+
+<details>
+<summary>Pattern-by-pattern comparison</summary>
+
+| Pattern | ast-grep | semgrep | Agreement |
+|---------|----------|---------|-----------|
+| async-await | 0 | 0 | match |
+| arrow-functions | 0 | 0 | match |
+| try-catch-error-handling | 6 | 0 | divergent |
+| interface-over-type | 32 | 32 | match |
+| type-aliases | 9 | 0 | divergent |
+| enum-usage | 0 | 2,693 | divergent |
+| named-exports | 0 | 0 | match |
+| default-exports | 0 | 0 | match |
+| describe-it-tests | 23 | 0 | divergent |
+| console-error-logging | 44 | 0 | divergent |
+| optional-chaining | 13 | 13 | match |
+| nullish-coalescing | 41 | 45 | close |
+
+</details>
+
+### Go stdlib (11,022 Go files)
+
+| Backend | Time | Detected | Notes |
+|---------|------|----------|-------|
+| ast-grep | 222ms | 3 (JS only) | Cannot scan Go |
+| semgrep | 87.5s | 0 | Go supported but no patterns matched threshold |
+
+### Summary
+
+| Metric | ast-grep | semgrep |
+|--------|----------|---------|
+| **Speed** | 12-147x faster | Baseline |
+| **TS/JS accuracy** | Higher | Lower (pattern syntax differences) |
+| **Language support** | TypeScript, JavaScript | + Python, Go, Rust |
+| **Install** | `npm install @ast-grep/napi` | `pip install semgrep` |
+| **Best for** | TS/JS projects (default) | Multi-language codebases |
+
+**Recommendation:** Use ast-grep (the default) for TypeScript/JavaScript projects. Use `--backend semgrep` when you need Python, Go, or Rust scanning.
+
 ## Design Decisions
 
 - **Filesystem-native** — agents using simple file operations outperform complex memory solutions. No databases, no Docker.
