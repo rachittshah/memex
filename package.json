@@ -1,0 +1,44 @@
+{
+  "name": "memex-ai",
+  "version": "0.1.0",
+  "description": "OSS Memory Manager for AI Coding Assistants — filesystem-native, tool-agnostic, LLM-optional",
+  "type": "module",
+  "main": "dist/cli.js",
+  "bin": {
+    "memex": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/cli.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "memory",
+    "ai",
+    "coding-assistant",
+    "claude-code",
+    "cursor",
+    "aider",
+    "llm",
+    "developer-tools"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^13.1.0",
+    "fuse.js": "^7.1.0",
+    "uuid": "^11.1.0",
+    "chalk": "^5.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "@types/uuid": "^10.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
