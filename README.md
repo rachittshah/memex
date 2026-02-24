@@ -79,6 +79,7 @@ memex scan                         # Auto-detect languages, scan with ast-grep
 memex scan --backend semgrep       # Use semgrep instead
 memex scan ./src --lang typescript # Scan specific dir/language
 memex scan --dry-run               # Preview without saving
+memex scan --benchmark             # Compare ast-grep vs semgrep speed & accuracy
 ```
 
 Detects patterns like: async/await vs promises, interface vs type alias, error handling style, import conventions, test patterns, and more — across TypeScript, JavaScript, Python, Go, and Rust.
@@ -350,6 +351,7 @@ memex scan [dir] [options]          Scan codebase for conventions
   --lang <languages>                   Comma-separated languages
   --min-matches <n>                    Minimum matches to report
   --dry-run                            Preview without saving
+  --benchmark                          Compare ast-grep vs semgrep
 memex validate [dir] [options]      Validate memories against code
   --backend <backend>                  ast-grep | semgrep | auto
   --json                               Machine-readable output

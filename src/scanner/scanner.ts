@@ -167,6 +167,24 @@ async function scanWithAstGrep(
 
 // ── Semgrep Backend ──────────────────────────────────────────────────────
 
+function getSemgrepEnv(): Record<string, string> {
+  const env = { ...process.env } as Record<string, string>;
+  // Ensure common Python bin dirs are in PATH so semgrep/pysemgrep are found
+  const home = process.env.HOME ?? '';
+  const extraPaths = [
+    `${home}/Library/Python/3.9/bin`,
+    `${home}/Library/Python/3.10/bin`,
+    `${home}/Library/Python/3.11/bin`,
+    `${home}/Library/Python/3.12/bin`,
+    `${home}/Library/Python/3.13/bin`,
+    `${home}/.local/bin`,
+    '/usr/local/bin',
+    '/opt/homebrew/bin',
+  ];
+  env.PATH = [...extraPaths, env.PATH ?? ''].join(':');
+  return env;
+}
+
 function semgrepLangId(lang: SupportedLang): string {
   const map: Record<SupportedLang, string> = {
     typescript: 'ts',
@@ -183,9 +201,10 @@ async function scanWithSemgrep(
   pattern: string,
   lang: SupportedLang,
 ): Promise<AstGrepMatch[]> {
+  const env = getSemgrepEnv();
   try {
     // Check if semgrep is installed
-    execSync('semgrep --version', { stdio: 'pipe' });
+    execSync('semgrep --version', { stdio: 'pipe', env });
   } catch {
     throw new Error(
       'semgrep not available. Install: pip install semgrep\n' +
@@ -197,7 +216,7 @@ async function scanWithSemgrep(
     const langId = semgrepLangId(lang);
     const result = execSync(
       `semgrep --pattern '${pattern.replace(/'/g, "\\'")}' --lang ${langId} --json --quiet ${dir}`,
-      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 60000 },
+      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 60000, env },
     );
 
     const parsed = JSON.parse(result);
@@ -225,7 +244,7 @@ export async function detectBackend(): Promise<'ast-grep' | 'semgrep'> {
 
   // Try semgrep CLI
   try {
-    execSync('semgrep --version', { stdio: 'pipe' });
+    execSync('semgrep --version', { stdio: 'pipe', env: getSemgrepEnv() });
     return 'semgrep';
   } catch {
     // not installed

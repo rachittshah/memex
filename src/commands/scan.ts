@@ -8,6 +8,7 @@ import { rebuildAll } from '../core/index.js';
 import { scan, detectLanguages, type ScannerBackend } from '../scanner/scanner.js';
 import { dedupOperation } from '../algorithms/dedup.js';
 import type { SupportedLang } from '../scanner/patterns.js';
+import { benchmarkScanners, formatScannerBench } from '../bench/scanner-bench.js';
 
 export function registerScanCommand(program: Command): void {
   program
@@ -18,12 +19,13 @@ export function registerScanCommand(program: Command): void {
     .option('--min-matches <n>', 'Minimum pattern matches to create a memory', '0')
     .option('--dry-run', 'Show discovered patterns without saving')
     .option('--exclude <dirs>', 'Comma-separated directories to exclude')
+    .option('--benchmark', 'Run both ast-grep and semgrep, compare speed and results')
     .action(async (dir, opts) => {
       const parentOpts = program.opts();
       const memexDir = resolveMemexDir(parentOpts);
       const scanDir = dir ? resolve(dir) : process.cwd();
 
-      if (!memexDir && !opts.dryRun) {
+      if (!memexDir && !opts.dryRun && !opts.benchmark) {
         console.error(chalk.red('Error:'), 'No .memex directory found. Run `memex init` first, or use --dry-run.');
         process.exit(1);
       }
@@ -36,6 +38,22 @@ export function registerScanCommand(program: Command): void {
       const exclude = opts.exclude
         ? (opts.exclude as string).split(',').map((d: string) => d.trim())
         : undefined;
+
+      // Benchmark mode — run both backends and compare
+      if (opts.benchmark) {
+        console.log(chalk.bold('Running scanner benchmark: ast-grep vs semgrep'));
+        console.log(chalk.dim(`Directory: ${scanDir}`));
+        console.log();
+
+        try {
+          const benchResult = await benchmarkScanners(scanDir);
+          console.log(formatScannerBench(benchResult));
+        } catch (err) {
+          console.error(chalk.red('Benchmark failed:'), (err as Error).message);
+          process.exit(1);
+        }
+        return;
+      }
 
       // Detect languages
       const detectedLangs = languages ?? await detectLanguages(scanDir);
