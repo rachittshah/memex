@@ -7,11 +7,13 @@ Current AI coding assistants (Claude Code, Cursor, Aider, Windsurf, Codex) all h
 ## Features
 
 - **L1/L2/L3 cache hierarchy** — always-loaded index, on-demand topic files, searchable archive
-- **Mem0-inspired dedup** — 4-operation model (ADD/UPDATE/DELETE/NOOP) with Jaccard similarity
+- **Jaccard dedup** — 4-operation model (ADD/UPDATE/DELETE/NOOP) with similarity-based dedup
 - **Configurable decay** — half-life per category (preferences never expire, project context decays in 14 days)
 - **Cross-tool export** — Claude Code, Cursor, Aider, AGENTS.md from a single source of truth
 - **Claude Code hooks** — auto-extract memories on PreCompact, Stop, SessionEnd, SessionStart
 - **MCP server mode** — mid-conversation memory access via `memex serve`
+- **Code scanning** — ast-grep/semgrep detect conventions directly from source code
+- **Memory validation** — cross-reference memories against actual code, flag contradictions
 - **LoCoMo benchmark** — built-in harness to measure memory quality with F1 scoring
 - **LLM-optional** — core features (add, search, audit, prune, export) work without an API key
 
@@ -69,6 +71,27 @@ memex export --aider               # → CONVENTIONS.md
 memex export --agents-md           # → AGENTS.md (universal format)
 memex export --all                 # All of the above
 ```
+
+### Scan codebase for conventions
+
+```bash
+memex scan                         # Auto-detect languages, scan with ast-grep
+memex scan --backend semgrep       # Use semgrep instead
+memex scan ./src --lang typescript # Scan specific dir/language
+memex scan --dry-run               # Preview without saving
+```
+
+Detects patterns like: async/await vs promises, interface vs type alias, error handling style, import conventions, test patterns, and more — across TypeScript, JavaScript, Python, Go, and Rust.
+
+### Validate memories against code
+
+```bash
+memex validate                     # Check all memories against codebase
+memex validate --backend semgrep   # Use semgrep for validation
+memex validate --json              # Machine-readable output
+```
+
+Flags memories that are contradicted by actual code (e.g., memory says "uses interfaces" but code has mostly type aliases).
 
 ## Local Development Setup
 
@@ -139,15 +162,19 @@ src/
 │   ├── claude-code.ts      # Claude Code hook handlers
 │   ├── mcp-server.ts       # MCP server mode (JSON-RPC over stdio)
 │   └── generic.ts          # Generic transcript extraction
+├── scanner/
+│   ├── patterns.ts         # Built-in ast-grep/semgrep patterns (TS, Python, Go, Rust)
+│   ├── scanner.ts          # Code scanning engine (ast-grep + semgrep backends)
+│   └── validator.ts        # Memory validation against code
 ├── bench/
 │   ├── locomo.ts           # LoCoMo dataset loader
 │   ├── runner.ts           # Benchmark execution engine
 │   ├── evaluator.ts        # F1 scoring + metrics
-│   ├── baselines.ts        # Baseline implementations
+│   ├── baselines.ts        # Baseline implementations (+ scan baseline)
 │   └── report.ts           # Results formatting
 └── commands/
     ├── init.ts, status.ts, add.ts, search.ts
-    ├── audit.ts, prune.ts, export.ts
+    ├── audit.ts, prune.ts, export.ts, scan.ts, validate.ts
     ├── consolidate.ts, extract.ts, bench.ts, serve.ts
 tests/
     ├── schema.test.ts      # 9 tests
@@ -318,17 +345,24 @@ memex bench [options]                Run LoCoMo benchmark
   --quick                              2 conversations only
   --baselines <list>                   Comma-separated baselines
   --ci --threshold <n>                 CI mode with F1 threshold
+memex scan [dir] [options]          Scan codebase for conventions
+  --backend <backend>                  ast-grep | semgrep | auto
+  --lang <languages>                   Comma-separated languages
+  --min-matches <n>                    Minimum matches to report
+  --dry-run                            Preview without saving
+memex validate [dir] [options]      Validate memories against code
+  --backend <backend>                  ast-grep | semgrep | auto
+  --json                               Machine-readable output
 memex serve                          Start MCP server (stdio)
 ```
 
 ## Design Decisions
 
-Built on insights from SOTA research:
-
-- **"A filesystem is all you need"** (Letta) — agents using simple file operations outperform complex memory solutions
-- **4-op dedup model** (Mem0) — ADD/UPDATE/DELETE/NOOP with Jaccard similarity is the sweet spot
-- **< 150 lines auto-loaded** (SFEIR) — modular rules reduce noise by 40%, theme-based > chronological
-- **Pattern detection at 2+ occurrences** (claude-diary) — recurring items auto-promote
+- **Filesystem-native** — agents using simple file operations outperform complex memory solutions. No databases, no Docker.
+- **4-op dedup model** — ADD/UPDATE/DELETE/NOOP with Jaccard similarity is the sweet spot for memory consolidation
+- **< 150 lines auto-loaded** — modular rules reduce noise by 40%, theme-based organization beats chronological
+- **Pattern detection at 2+ occurrences** — recurring items auto-promote to higher tiers
+- **Code-aware scanning** — ast-grep/semgrep detect conventions directly from source code, not just conversations
 
 ## License
 

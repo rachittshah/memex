@@ -1,6 +1,7 @@
 import type { MemoryStore } from '../core/store.js';
 import type { TierManager } from '../core/tiers.js';
 import type { LoCoMoTurn } from './locomo.js';
+import { scan } from '../scanner/scanner.js';
 
 export function noneBaseline(): string {
   return '';
@@ -59,4 +60,31 @@ export async function fullBaseline(
     .map((r) => `- ${r.entry.content}`);
 
   return [l2Content, ...relevant].filter(Boolean).join('\n');
+}
+
+/**
+ * Scan baseline — combines L2 memory with code-scanned patterns.
+ * Uses ast-grep/semgrep to discover conventions from the codebase,
+ * then adds those to the context alongside standard L2 memories.
+ */
+export async function scanBaseline(
+  tierManager: TierManager,
+  codeDir: string,
+): Promise<string> {
+  const l2Content = await l2Baseline(tierManager);
+
+  try {
+    const scanResults = await scan({ dir: codeDir, backend: 'auto' });
+    const scanContext = scanResults
+      .slice(0, 15) // Top 15 patterns
+      .map((r) => `- ${r.entry.content}`)
+      .join('\n');
+
+    return [l2Content, '## Code-Scanned Patterns', scanContext]
+      .filter(Boolean)
+      .join('\n\n');
+  } catch {
+    // Scanner not available, fall back to L2 only
+    return l2Content;
+  }
 }

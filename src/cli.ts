@@ -13,6 +13,8 @@ import { registerConsolidateCommand } from './commands/consolidate.js';
 import { registerExtractCommand } from './commands/extract.js';
 import { registerBenchCommand } from './commands/bench.js';
 import { registerServeCommand } from './commands/serve.js';
+import { registerScanCommand } from './commands/scan.js';
+import { registerValidateCommand } from './commands/validate.js';
 
 /**
  * Resolve the .memex directory by checking --dir option,
@@ -56,5 +58,7 @@ registerConsolidateCommand(program);
 registerExtractCommand(program);
 registerBenchCommand(program);
 registerServeCommand(program);
+registerScanCommand(program);
+registerValidateCommand(program);
 
 program.parse();
